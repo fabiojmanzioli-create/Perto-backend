@@ -1,0 +1,4 @@
+node_modules/
+perto.db
+.env
+*.log

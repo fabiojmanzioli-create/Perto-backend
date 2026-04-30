@@ -1,0 +1,17 @@
+{
+  "name": "perto-backend",
+  "version": "1.0.0",
+  "description": "Backend do sistema PERTO - Perfil Estrutural de Temperamento",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "better-sqlite3": "^9.4.3",
+    "nodemailer": "^6.9.9",
+    "uuid": "^9.0.0",
+    "cors": "^2.8.5"
+  }
+}

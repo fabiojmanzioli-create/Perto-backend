@@ -1,0 +1,12 @@
+# Configurações do servidor
+PORT=3000
+BASE_URL=https://metodoperto.com.br
+
+# Chave de admin (crie uma senha forte aqui)
+ADMIN_KEY=sua_chave_admin_aqui
+
+# Configurações de e-mail (Brevo SMTP)
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=seu_login_brevo@smtp-brevo.com
+SMTP_PASS=sua_senha_smtp_brevo
