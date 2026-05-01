@@ -41,6 +41,10 @@ async function enviarEmailAcesso(email, nome, token) {
   const link = `${process.env.BASE_URL || 'https://metodoperto.com.br'}/acesso?token=${token}`;
   const primeiroNome = nome.split(' ')[0];
 
+  // Ler o e-book em base64 (formato necessário para enviar como anexo)
+  const ebookPath = path.join(__dirname, 'public', 'PERTO_Ebook.pdf');
+  const ebookBase64 = fs.readFileSync(ebookPath).toString('base64');
+
   const html = `
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -56,7 +60,25 @@ async function enviarEmailAcesso(email, nome, token) {
         <tr><td style="padding:44px 40px;">
           <p style="font-family:Georgia,serif;font-size:22px;color:#1A1A1A;margin:0 0 16px;">Olá, ${primeiroNome}.</p>
           <p style="font-size:15px;line-height:1.8;color:#555;margin:0 0 16px;">Sua compra foi confirmada. Está tudo pronto para você começar o inventário.</p>
-          <p style="font-size:15px;line-height:1.8;color:#555;margin:0 0 32px;">Clique no botão abaixo para acessar o PERTO. Seu link é exclusivo e ficará disponível por <strong style="color:#1A1A1A;">7 dias</strong> a partir do primeiro acesso.</p>
+          <p style="font-size:15px;line-height:1.8;color:#555;margin:0 0 24px;">Siga os passos abaixo para aproveitar ao máximo o PERTO:</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
+            <tr><td style="padding:12px 0;border-bottom:1px solid #EEE;">
+              <span style="font-size:13px;font-weight:700;color:#E8856F;">PASSO 1</span>
+              <span style="font-size:14px;color:#444;margin-left:12px;">Clique no botão abaixo e acesse o inventário</span>
+            </td></tr>
+            <tr><td style="padding:12px 0;border-bottom:1px solid #EEE;">
+              <span style="font-size:13px;font-weight:700;color:#E8856F;">PASSO 2</span>
+              <span style="font-size:14px;color:#444;margin-left:12px;">Responda as 80 questões com calma e honestidade (~20 minutos)</span>
+            </td></tr>
+            <tr><td style="padding:12px 0;border-bottom:1px solid #EEE;">
+              <span style="font-size:13px;font-weight:700;color:#E8856F;">PASSO 3</span>
+              <span style="font-size:14px;color:#444;margin-left:12px;">Ao final, seu relatório completo será gerado automaticamente em PDF</span>
+            </td></tr>
+            <tr><td style="padding:12px 0;">
+              <span style="font-size:13px;font-weight:700;color:#E8856F;">PASSO 4</span>
+              <span style="font-size:14px;color:#444;margin-left:12px;">Use o e-book em anexo para aprofundar a leitura do seu relatório</span>
+            </td></tr>
+          </table>
           <table cellpadding="0" cellspacing="0" style="margin:0 auto 32px;">
             <tr><td style="background:#E8856F;border-radius:4px;">
               <a href="${link}" style="display:block;padding:18px 52px;font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#fff;text-decoration:none;">
@@ -67,9 +89,9 @@ async function enviarEmailAcesso(email, nome, token) {
           <table width="100%" cellpadding="0" cellspacing="0" style="background:#F8F4F0;border-radius:8px;margin-bottom:24px;">
             <tr><td style="padding:20px 24px;">
               <p style="font-size:13px;line-height:1.75;color:#777;margin:0;">
+                <strong style="color:#444;">Brinde exclusivo:</strong> O e-book <em>Seu Temperamento na Prática</em> está em anexo neste e-mail. Leia após receber seu relatório.<br>
                 <strong style="color:#444;">Link exclusivo:</strong> Este link foi gerado especialmente para você e não deve ser compartilhado.<br>
                 <strong style="color:#444;">Validade:</strong> 7 dias a partir do primeiro clique.<br>
-                <strong style="color:#444;">Tempo estimado:</strong> ~20 minutos para completar o inventário.<br>
                 <strong style="color:#444;">Relatório:</strong> Gerado automaticamente ao final, disponível em PDF.
               </p>
             </td></tr>
@@ -91,7 +113,13 @@ async function enviarEmailAcesso(email, nome, token) {
     sender: { name: 'Método PERTO', email: 'contato@metodoperto.com.br' },
     to: [{ email, name: nome }],
     subject: `${primeiroNome}, seu acesso ao PERTO está pronto`,
-    htmlContent: html
+    htmlContent: html,
+    attachment: [
+      {
+        content: ebookBase64,
+        name: 'PERTO_Ebook.pdf'
+      }
+    ]
   });
 
   return new Promise((resolve, reject) => {
