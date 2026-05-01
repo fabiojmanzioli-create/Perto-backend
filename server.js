@@ -1,10 +1,10 @@
 const express = require('express');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
-const nodemailer = require('nodemailer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 
 const app = express();
 app.use(express.json());
@@ -36,20 +36,7 @@ db.exec(`
   );
 `);
 
-// ── EMAIL ────────────────────────────────────────────
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false,
-  requireTLS: true,
-  tls: { rejectUnauthorized: false },
-  connectionTimeout: 10000,
-  auth: {
-    user: process.env.SMTP_USER || '',
-    pass: process.env.SMTP_PASS || ''
-  }
-});
-
+// ── EMAIL VIA API BREVO ──────────────────────────────
 async function enviarEmailAcesso(email, nome, token) {
   const link = `${process.env.BASE_URL || 'https://metodoperto.com.br'}/acesso?token=${token}`;
   const primeiroNome = nome.split(' ')[0];
@@ -100,11 +87,38 @@ async function enviarEmailAcesso(email, nome, token) {
 </body>
 </html>`;
 
-  await transporter.sendMail({
-    from: `"Método PERTO" <contato@metodoperto.com.br>`,
-    to: email,
+  const payload = JSON.stringify({
+    sender: { name: 'Método PERTO', email: 'contato@metodoperto.com.br' },
+    to: [{ email, name: nome }],
     subject: `${primeiroNome}, seu acesso ao PERTO está pronto`,
-    html
+    htmlContent: html
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.brevo.com',
+      path: '/v3/smtp/email',
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': process.env.BREVO_API_KEY,
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(payload)
+      }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(JSON.parse(data));
+        } else {
+          reject(new Error(`Brevo API erro ${res.statusCode}: ${data}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
   });
 }
 
@@ -178,7 +192,7 @@ app.get('/acesso', (req, res) => {
 
   const expiracao = row.primeiro_acesso + (7 * 24 * 60 * 60);
   if (agora > expiracao) {
-    return res.send(paginaErro('Acesso expirado', `Seu acesso ao inventário expirou. Para dúvidas, entre em contato: <a href="mailto:contato@metodoperto.com.br">contato@metodoperto.com.br</a>`));
+    return res.send(paginaErro('Acesso expirado', `Seu acesso expirou. Entre em contato: <a href="mailto:contato@metodoperto.com.br">contato@metodoperto.com.br</a>`));
   }
 
   const diasRestantes = Math.ceil((expiracao - agora) / 86400);
