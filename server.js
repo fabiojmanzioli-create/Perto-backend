@@ -115,9 +115,7 @@ async function enviarEmailAcesso(email, nome, token) {
 app.post('/webhook/hotmart', async (req, res) => {
   try {
     const body = req.body;
-    const event = body.event || body.hottok;
 
-    // Hotmart envia PURCHASE_APPROVED para compra aprovada
     const isAprovado = (
       body.event === 'PURCHASE_APPROVED' ||
       body.data?.purchase?.status === 'APPROVED' ||
@@ -128,7 +126,6 @@ app.post('/webhook/hotmart', async (req, res) => {
       return res.status(200).json({ ok: true, msg: 'evento ignorado' });
     }
 
-    // Extrair dados do comprador
     const buyer = body.data?.buyer || body.buyer || {};
     const email = buyer.email || body.email;
     const nome = buyer.name || body.name || 'Cliente';
@@ -137,17 +134,15 @@ app.post('/webhook/hotmart', async (req, res) => {
       return res.status(400).json({ error: 'email não encontrado no webhook' });
     }
 
-    // Gerar token com validade de 7 dias
     const token = uuidv4();
     const agora = Math.floor(Date.now() / 1000);
-    const expira = agora + (7 * 24 * 60 * 60); // 7 dias em segundos
+    const expira = agora + (7 * 24 * 60 * 60);
 
     db.prepare(`
       INSERT INTO tokens (token, email, nome, criado_em, expira_em)
       VALUES (?, ?, ?, ?, ?)
     `).run(token, email, nome, agora, expira);
 
-    // Enviar e-mail com o link
     await enviarEmailAcesso(email, nome, token);
 
     res.status(200).json({ ok: true, token });
@@ -158,25 +153,32 @@ app.post('/webhook/hotmart', async (req, res) => {
 });
 
 // Rota para gerar token manualmente (para testes e envios manuais)
-app.post('/admin/gerar-token', (req, res) => {
-  const adminKey = req.headers['x-admin-key'];
-  if (adminKey !== process.env.ADMIN_KEY) {
-    return res.status(401).json({ error: 'não autorizado' });
+app.post('/admin/gerar-token', async (req, res) => {
+  try {
+    const adminKey = req.headers['x-admin-key'];
+    if (adminKey !== process.env.ADMIN_KEY) {
+      return res.status(401).json({ error: 'não autorizado' });
+    }
+
+    const { email, nome } = req.body;
+    if (!email || !nome) return res.status(400).json({ error: 'email e nome são obrigatórios' });
+
+    const token = uuidv4();
+    const agora = Math.floor(Date.now() / 1000);
+    const expira = agora + (7 * 24 * 60 * 60);
+
+    db.prepare(`
+      INSERT INTO tokens (token, email, nome, criado_em, expira_em)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(token, email, nome, agora, expira);
+
+    await enviarEmailAcesso(email, nome, token);
+
+    res.json({ ok: true, token, link: `${process.env.BASE_URL}/acesso?token=${token}` });
+  } catch (err) {
+    console.error('Erro ao gerar token:', err);
+    res.status(500).json({ error: err.message });
   }
-
-  const { email, nome } = req.body;
-  if (!email || !nome) return res.status(400).json({ error: 'email e nome são obrigatórios' });
-
-  const token = uuidv4();
-  const agora = Math.floor(Date.now() / 1000);
-  const expira = agora + (7 * 24 * 60 * 60);
-
-  db.prepare(`
-    INSERT INTO tokens (token, email, nome, criado_em, expira_em)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(token, email, nome, agora, expira);
-
-  res.json({ ok: true, token, link: `${process.env.BASE_URL}/acesso?token=${token}` });
 });
 
 // Rota de acesso — valida token e serve o inventário
@@ -195,13 +197,11 @@ app.get('/acesso', (req, res) => {
 
   const agora = Math.floor(Date.now() / 1000);
 
-  // Registrar primeiro acesso
   if (!row.primeiro_acesso) {
     db.prepare('UPDATE tokens SET primeiro_acesso = ? WHERE token = ?').run(agora, token);
     row.primeiro_acesso = agora;
   }
 
-  // Verificar expiração a partir do primeiro acesso (7 dias)
   const expiracao = row.primeiro_acesso + (7 * 24 * 60 * 60);
   if (agora > expiracao) {
     return res.send(paginaErro(
@@ -210,10 +210,8 @@ app.get('/acesso', (req, res) => {
     ));
   }
 
-  // Calcular tempo restante
   const diasRestantes = Math.ceil((expiracao - agora) / 86400);
 
-  // Servir o inventário com o token embutido
   const inventario = fs.readFileSync(path.join(__dirname, 'public', 'inventario.html'), 'utf8');
   const paginaFinal = inventario
     .replace('__TOKEN__', token)
